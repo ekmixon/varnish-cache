@@ -38,6 +38,7 @@ Read the first existing file from arguments or vmod.vcc and produce:
     prefix can set via -o and defaults to vcc_if
 """
 
+
 import copy
 import glob
 import hashlib
@@ -96,31 +97,29 @@ PRIVS = {
 }
 
 CTYPES = {
-    'ACL':         "VCL_ACL",
-    'BACKEND':     "VCL_BACKEND",
-    'BLOB':        "VCL_BLOB",
-    'BODY':        "VCL_BODY",
-    'BOOL':        "VCL_BOOL",
-    'BYTES':       "VCL_BYTES",
-    'DURATION':    "VCL_DURATION",
-    'ENUM':        "VCL_ENUM",
-    'HEADER':      "VCL_HEADER",
-    'HTTP':        "VCL_HTTP",
-    'INT':         "VCL_INT",
-    'IP':          "VCL_IP",
-    'PROBE':       "VCL_PROBE",
-    'REAL':        "VCL_REAL",
-    'REGEX':       "VCL_REGEX",
-    'STEVEDORE':   "VCL_STEVEDORE",
-    'STRANDS':     "VCL_STRANDS",
-    'STRING':      "VCL_STRING",
+    'ACL': "VCL_ACL",
+    'BACKEND': "VCL_BACKEND",
+    'BLOB': "VCL_BLOB",
+    'BODY': "VCL_BODY",
+    'BOOL': "VCL_BOOL",
+    'BYTES': "VCL_BYTES",
+    'DURATION': "VCL_DURATION",
+    'ENUM': "VCL_ENUM",
+    'HEADER': "VCL_HEADER",
+    'HTTP': "VCL_HTTP",
+    'INT': "VCL_INT",
+    'IP': "VCL_IP",
+    'PROBE': "VCL_PROBE",
+    'REAL': "VCL_REAL",
+    'REGEX': "VCL_REGEX",
+    'STEVEDORE': "VCL_STEVEDORE",
+    'STRANDS': "VCL_STRANDS",
+    'STRING': "VCL_STRING",
     'STRING_LIST': "const char *, ...",
-    'SUB':         "VCL_SUB",
-    'TIME':        "VCL_TIME",
-    'VOID':        "VCL_VOID",
-}
-
-CTYPES.update(PRIVS)
+    'SUB': "VCL_SUB",
+    'TIME': "VCL_TIME",
+    'VOID': "VCL_VOID",
+} | PRIVS
 
 DEPRECATED = {}
 
@@ -150,10 +149,7 @@ def unquote(txt):
 def fmt_cstruct(fo, a, b):
     ''' Output line in vmod struct '''
     t = '\t%s' % a
-    if len(t.expandtabs()) > 40:
-        t += '\n\t\t\t\t\t'
-    else:
-        t += '\t'
+    t += '\n\t\t\t\t\t' if len(t.expandtabs()) > 40 else '\t'
     while len(t.expandtabs()) < 40:
         t += '\t'
     fo.write('%s%s\n' % (t, b))
@@ -165,7 +161,7 @@ def write_file_warning(fo, a, b, c, s):
     fo.write(a + "\n")
     fo.write(b + " NB:  This file is machine generated, DO NOT EDIT!\n")
     fo.write(b + "\n")
-    fo.write(b + " Edit " + s + " and run make instead\n")
+    fo.write(f"{b} Edit {s}" + " and run make instead\n")
     fo.write(c + "\n\n")
 
 
@@ -218,10 +214,10 @@ def err(txt, warn=True):
     if inputline is not None:
         print("While parsing line:\n\t", inputline)
     if opts.strict or not warn:
-        print("ERROR: " + txt, file=sys.stderr)
+        print(f"ERROR: {txt}", file=sys.stderr)
         exit(1)
     else:
-        print("WARNING: " + txt, file=sys.stderr)
+        print(f"WARNING: {txt}", file=sys.stderr)
 
 #######################################################################
 
@@ -249,14 +245,14 @@ Please switch to STRANDS
             self.add_spec(wl, enums)
 
     def __str__(self):
-        s = "<" + self.vt
+        s = f"<{self.vt}"
         if self.nm is not None:
-            s += " " + self.nm
+            s += f" {self.nm}"
         if self.defval is not None:
-            s += " VAL=" + self.defval
+            s += f" VAL={self.defval}"
         if self.spec is not None:
-            s += " SPEC=" + str(self.spec)
-        return s + ">"
+            s += f" SPEC={str(self.spec)}"
+        return f"{s}>"
 
     def add_spec(self, wl, enums):
         assert self.vt == "ENUM"
@@ -315,9 +311,8 @@ class arg(CType):
             err("Expected '=' got '%s'" % x, warn=False)
 
         x = wl.pop(0)
-        if self.vt == "ENUM":
-            if is_quoted(x):
-                x = unquote(x)
+        if self.vt == "ENUM" and is_quoted(x):
+            x = unquote(x)
         self.defval = x
 
     def jsonproto(self, jl):
@@ -387,10 +382,7 @@ class ProtoType(object):
                 err("arguments can not be of type '%s'" % t.vt, warn=False)
             if t.vt == 'STRING_LIST' and len(wl) > 1:
                 err("'%s' must be the last argument" % t.vt, warn=False)
-            if t.nm is None:
-                t.nm2 = "arg%d" % n
-            else:
-                t.nm2 = t.nm
+            t.nm2 = "arg%d" % n if t.nm is None else t.nm
             self.args.append(t)
 
     def vcl_proto(self, terse, pfx=""):
@@ -398,28 +390,27 @@ class ProtoType(object):
             pfx += pfx
         s = pfx
         if isinstance(self.st, ObjectStanza):
-            s += "new " + self.obj + " = "
+            s += f"new {self.obj} = "
         elif self.retval is not None:
-            s += self.retval.vcl() + " "
+            s += f"{self.retval.vcl()} "
 
         if isinstance(self.st, ObjectStanza):
-            s += self.st.vcc.modname + "." + self.name + "("
+            s += f"{self.st.vcc.modname}.{self.name}("
         elif isinstance(self.st, MethodStanza):
             s += self.obj + self.bname + "("
         else:
-            s += self.name + "("
+            s += f"{self.name}("
         ll = []
         for i in self.args:
             t = i.vcl(terse)
             if t in PRIVS:
                 continue
             if i.nm is not None:
-                t += " " + i.nm
-            if not terse:
-                if i.defval is not None:
-                    t += "=" + i.defval
+                t += f" {i.nm}"
+            if not terse and i.defval is not None:
+                t += f"={i.defval}"
             if i.opt:
-                t = "[" + t + "]"
+                t = f"[{t}]"
             ll.append(t)
         t = ",@".join(ll)
         if len(s + t) > 68 and not terse:
@@ -441,30 +432,29 @@ class ProtoType(object):
 
     def cname(self, pfx=False):
         r = self.name.replace(".", "_")
-        if pfx:
-            return self.st.vcc.sympfx + r
-        return r
+        return self.st.vcc.sympfx + r if pfx else r
 
     def proto(self, args, name):
-        s = self.retval.ct + " " + name + '('
+        s = f"{self.retval.ct} {name}("
         ll = args
         if self.argstruct:
-            ll.append(self.argstructname() + "*")
+            ll.append(f"{self.argstructname()}*")
         else:
-            for i in self.args:
+            for i in self.ll:
                 ll.append(i.ct)
         s += ", ".join(ll)
-        return s + ');'
+        return f'{s});'
 
     def typedef_name(self):
-        return 'td_' + self.st.vcc.sympfx + \
-            self.st.vcc.modname + '_' + self.cname()
+        return (
+            (f'td_{self.st.vcc.sympfx}' + self.st.vcc.modname) + '_'
+        ) + self.cname()
 
     def typedef(self, args):
-        return "typedef " + self.proto(args, name=self.typedef_name())
+        return f"typedef {self.proto(args, name=self.typedef_name())}"
 
     def argstructname(self):
-        return "struct VARGS(%s)" % self.cname(False)
+        return f"struct VARGS({self.cname(False)})"
 
     def argstructure(self):
         s = "\n" + self.argstructname() + " {\n"
@@ -503,11 +493,13 @@ class ProtoType(object):
         ''' Produce VCL prototype as JSON '''
         ll = []
         self.retval.jsonproto(ll)
-        ll.append('%s.%s' % (self.st.vcc.csn, cfunc))
+        ll.append(f'{self.st.vcc.csn}.{cfunc}')
         if self.argstruct:
             # We cannot use VARGS() here, we are after the #undef
-            ll.append('struct arg_%s%s_%s' %
-                (self.st.vcc.sympfx, self.st.vcc.modname, self.cname(False)))
+            ll.append(
+                f'struct arg_{self.st.vcc.sympfx}{self.st.vcc.modname}_{self.cname(False)}'
+            )
+
         else:
             ll.append("")
         for i in self.args:
@@ -572,17 +564,9 @@ class Stanza(object):
 
     def fmt_cstruct_proto(self, fo, proto, define):
         if define:
-            fmt_cstruct(
-                fo,
-                proto.typedef_name(),
-                '*' + proto.cname() + ';'
-            )
+            fmt_cstruct(fo, proto.typedef_name(), f'*{proto.cname()};')
         else:
-            fmt_cstruct(
-                fo,
-                '.' + proto.cname() + ' =',
-                self.vcc.sympfx + proto.cname() + ','
-            )
+            fmt_cstruct(fo, f'.{proto.cname()} =', self.vcc.sympfx + proto.cname() + ',')
 
     def cstruct(self, unused_fo, unused_define):
         return
@@ -614,17 +598,20 @@ class ModuleStanza(Stanza):
     def rsthead(self, fo, man):
 
         if man:
-            write_rst_hdr(fo, "vmod_" + self.vcc.modname, "=", "=")
+            write_rst_hdr(fo, f"vmod_{self.vcc.modname}", "=", "=")
             write_rst_hdr(fo, self.vcc.moddesc, "-", "-")
             fo.write("\n")
-            fo.write(":Manual section: " + self.vcc.mansection + "\n")
+            fo.write(f":Manual section: {self.vcc.mansection}" + "\n")
         else:
             if self.rstlbl:
                 fo.write('\n.. _' + self.rstlbl + ':\n')
-            write_rst_hdr(fo,
-                          "VMOD " + self.vcc.modname +
-                          ' - ' + self.vcc.moddesc,
-                          "=", "=")
+            write_rst_hdr(
+                fo,
+                ((f"VMOD {self.vcc.modname}" + ' - ') + self.vcc.moddesc),
+                "=",
+                "=",
+            )
+
 
         if self.vcc.auto_synopsis:
             write_rst_hdr(fo, "SYNOPSIS", "=")
@@ -660,7 +647,7 @@ class PrefixStanza(Stanza):
     def parse(self):
         if len(self.toks) != 2:
             self.syntax()
-        self.vcc.sympfx = self.toks[1] + "_"
+        self.vcc.sympfx = f"{self.toks[1]}_"
         self.vcc.contents.append(self)
 
 
@@ -710,7 +697,7 @@ class EventStanza(Stanza):
                         self.vcc.sympfx + self.event_func + ',')
 
     def json(self, jl):
-        jl.append(["$EVENT", "%s._event" % self.vcc.csn])
+        jl.append(["$EVENT", f"{self.vcc.csn}._event"])
 
 
 class FunctionStanza(Stanza):
@@ -719,7 +706,7 @@ class FunctionStanza(Stanza):
 
     def parse(self):
         self.proto = ProtoType(self)
-        self.rstlbl = '%s.%s()' % (self.vcc.modname, self.proto.name)
+        self.rstlbl = f'{self.vcc.modname}.{self.proto.name}()'
         self.vcc.contents.append(self)
 
     def cstuff(self, fo, where):
@@ -729,7 +716,7 @@ class FunctionStanza(Stanza):
         self.fmt_cstruct_proto(fo, self.proto, define)
 
     def json(self, jl):
-        jl.append(["$FUNC", "%s" % self.proto.name])
+        jl.append(["$FUNC", f"{self.proto.name}"])
         self.proto.jsonproto(jl[-1], self.proto.cname())
 
 
@@ -742,7 +729,7 @@ class ObjectStanza(Stanza):
             self.toks.pop(1)
             self.null_ok = True
         self.proto = ProtoType(self, retval=False)
-        self.proto.obj = "x" + self.proto.name
+        self.proto.obj = f"x{self.proto.name}"
 
         self.init = copy.copy(self.proto)
         self.init.name += '__init'
@@ -752,7 +739,7 @@ class ObjectStanza(Stanza):
         self.fini.argstruct = False
         self.fini.args = []
 
-        self.rstlbl = '%s.%s()' % (self.vcc.modname, self.proto.name)
+        self.rstlbl = f'{self.vcc.modname}.{self.proto.name}()'
         self.vcc.contents.append(self)
         self.methods = []
 
@@ -780,14 +767,13 @@ class ObjectStanza(Stanza):
                     fo.write('      :ref:`%s`\n  \n' % i.rstlbl)
 
     def cstuff(self, fo, w):
-        sn = 'VPFX(' + self.vcc.modname + '_' + self.proto.name + ')'
+        sn = f'VPFX({self.vcc.modname}_{self.proto.name})'
         fo.write("struct %s;\n" % sn)
 
-        fo.write(self.init.cproto(
-            ['VRT_CTX', 'struct %s **' % sn, 'const char *'], w))
-        fo.write(self.fini.cproto(['struct %s **' % sn], w))
+        fo.write(self.init.cproto(['VRT_CTX', f'struct {sn} **', 'const char *'], w))
+        fo.write(self.fini.cproto([f'struct {sn} **'], w))
         for i in self.methods:
-            fo.write(i.proto.cproto(['VRT_CTX', 'struct %s *' % sn], w))
+            fo.write(i.proto.cproto(['VRT_CTX', f'struct {sn} *'], w))
         fo.write("\n")
 
     def cstruct(self, fo, define):
@@ -798,16 +784,15 @@ class ObjectStanza(Stanza):
         fo.write("\n")
 
     def json(self, jl):
+        l2 = ["$INIT"]
         ll = [
             "$OBJ",
             self.proto.name,
             {"NULL_OK": self.null_ok},
-            "struct %s%s_%s" %
-            (self.vcc.sympfx, self.vcc.modname, self.proto.name),
+            f"struct {self.vcc.sympfx}{self.vcc.modname}_{self.proto.name}",
+            l2,
         ]
 
-        l2 = ["$INIT"]
-        ll.append(l2)
         self.init.jsonproto(l2, self.init.name)
 
         l2 = ["$FINI"]
@@ -832,10 +817,13 @@ class MethodStanza(Stanza):
         self.pfx = p.proto.name
         self.proto = ProtoType(self, prefix=self.pfx)
         if not self.proto.bname.startswith("."):
-            err("$Method %s: Method names need to start with . (dot)"
-                % self.proto.bname, warn=False)
-        self.proto.obj = "x" + self.pfx
-        self.rstlbl = 'x%s()' % self.proto.name
+            err(
+                f"$Method {self.proto.bname}: Method names need to start with . (dot)",
+                warn=False,
+            )
+
+        self.proto.obj = f"x{self.pfx}"
+        self.rstlbl = f'x{self.proto.name}()'
         p.methods.append(self)
 
     def cstruct(self, fo, define):
@@ -880,11 +868,11 @@ class vcc(object):
 
     def openfile(self, fn):
         self.commit_files.append(fn)
-        return open(fn + ".tmp", "w")
+        return open(f"{fn}.tmp", "w")
 
     def commit(self):
         for i in self.commit_files:
-            os.rename(i + ".tmp", i)
+            os.rename(f"{i}.tmp", i)
 
     def parse(self):
         global inputline
@@ -901,10 +889,10 @@ class vcc(object):
             docstr = "".join(ss[1:])
             stanzaclass = DISPATCH.get(toks[0])
             if stanzaclass is None:
-                err("Unknown stanza $%s" % toks[0], warn=False)
+                err(f"Unknown stanza ${toks[0]}", warn=False)
             stanzaclass(self, toks, docstr)
             inputline = None
-        self.csn = "Vmod_%s%s_Func" % (self.sympfx, self.modname)
+        self.csn = f"Vmod_{self.sympfx}{self.modname}_Func"
         self.file_id = h.hexdigest()
 
     def tokenize(self, txt, seps=None, quotes=None):
@@ -946,7 +934,7 @@ class vcc(object):
 
     def rstfile(self, man=False):
         ''' Produce rst documentation '''
-        fn = os.path.join(self.rstdir, "vmod_" + self.modname)
+        fn = os.path.join(self.rstdir, f"vmod_{self.modname}")
         if man:
             fn += ".man"
         fn += ".rst"
@@ -976,9 +964,9 @@ class vcc(object):
     def amboilerplate(self):
         ''' Produce boilplate for autocrap tools '''
         vcc = os.path.basename(self.inputfile)
-        src = glob.glob("vmod_" + self.modname + "*.[ch]")
+        src = glob.glob(f"vmod_{self.modname}*.[ch]")
         src.sort()
-        fn = "automake_boilerplate_" + self.modname + ".am"
+        fn = f"automake_boilerplate_{self.modname}.am"
         fo = self.openfile(fn)
         fo.write(AMBOILERPLATE.replace("XXX", self.modname)
                  .replace("VCC", vcc)
@@ -1001,7 +989,7 @@ class vcc(object):
 
     def mkhfile(self):
         ''' Produce vcc_if.h file '''
-        fn = self.pfx + ".h"
+        fn = f"{self.pfx}.h"
         fo = self.openfile(fn)
         write_c_file_warning(fo, self.inputfile)
         fo.write("#ifndef VDEF_H_INCLUDED\n")
@@ -1035,7 +1023,7 @@ class vcc(object):
         for j in self.contents:
             j.cstruct(fo, True)
         for j in sorted(self.enums):
-            fmt_cstruct(fo, 'VCL_ENUM', '*enum_%s;' % j)
+            fmt_cstruct(fo, 'VCL_ENUM', f'*enum_{j};')
         fo.write("};\n")
 
     def cstruct_init(self, fo):
@@ -1044,7 +1032,7 @@ class vcc(object):
             j.cstruct(fo, False)
         fo.write("\n")
         for j in sorted(self.enums):
-            fmt_cstruct(fo, '.enum_%s =' % j, '&VENUM(%s),' % j)
+            fmt_cstruct(fo, f'.enum_{j} =', f'&VENUM({j}),')
         fo.write("};\n")
 
     def json(self, fo):
@@ -1065,7 +1053,7 @@ class vcc(object):
         fo.write(t + '\\n"\n};\n')
 
     def vmod_data(self, fo):
-        vmd = "Vmod_%s_Data" % self.modname
+        vmd = f"Vmod_{self.modname}_Data"
         fo.write('\n')
         for i in (714, 759, 765):
             fo.write("/*lint -esym(%d, %s) */\n" % (i, vmd))
@@ -1089,46 +1077,43 @@ class vcc(object):
 
     def mkcfile(self):
         ''' Produce vcc_if.c file '''
-        fno = self.pfx + ".c"
+        fno = f"{self.pfx}.c"
         fo = self.openfile(fno)
-        fnx = fno + ".tmp2"
-        fx = open(fnx, "w")
+        fnx = f"{fno}.tmp2"
+        with open(fnx, "w") as fx:
+            write_c_file_warning(fo, self.inputfile)
 
-        write_c_file_warning(fo, self.inputfile)
+            self.mkdefs(fx);
 
-        self.mkdefs(fx);
+            fo.write('#include "config.h"\n')
+            for i in ["vdef", "vrt", self.pfx, "vmod_abi"]:
+                fo.write('#include "%s.h"\n' % i)
+            fo.write("\n")
 
-        fo.write('#include "config.h"\n')
-        for i in ["vdef", "vrt", self.pfx, "vmod_abi"]:
-            fo.write('#include "%s.h"\n' % i)
-        fo.write("\n")
+            for j in sorted(self.enums):
+                fo.write('VCL_ENUM VENUM(%s) = "%s";\n' % (j, j))
+            fo.write("\n")
 
-        for j in sorted(self.enums):
-            fo.write('VCL_ENUM VENUM(%s) = "%s";\n' % (j, j))
-        fo.write("\n")
+            for i in self.contents:
+                if isinstance(i, ObjectStanza):
+                    i.cstuff(fo, 'c')
+                    i.cstuff(fx, 'o')
 
-        for i in self.contents:
-            if isinstance(i, ObjectStanza):
-                i.cstuff(fo, 'c')
-                i.cstuff(fx, 'o')
+            fx.write("/* Functions */\n")
+            for i in self.contents:
+                if isinstance(i, FunctionStanza):
+                    i.cstuff(fo, 'c')
+                    i.cstuff(fx, 'o')
 
-        fx.write("/* Functions */\n")
-        for i in self.contents:
-            if isinstance(i, FunctionStanza):
-                i.cstuff(fo, 'c')
-                i.cstuff(fx, 'o')
+            self.cstruct(fo)
+            self.cstruct(fx)
 
-        self.cstruct(fo)
-        self.cstruct(fx)
+            fo.write("\n/*lint -esym(754, " + self.csn + "::*) */\n")
+            self.cstruct_init(fo)
 
-        fo.write("\n/*lint -esym(754, " + self.csn + "::*) */\n")
-        self.cstruct_init(fo)
-
-        fx.write('#undef VPFX\n')
-        fx.write('#undef VARGS\n')
-        fx.write('#undef VENUM\n')
-
-        fx.close()
+            fx.write('#undef VPFX\n')
+            fx.write('#undef VARGS\n')
+            fx.write('#undef VENUM\n')
 
         fo.write("\nstatic const char Vmod_Proto[] =\n")
         for i in open(fnx):
@@ -1177,11 +1162,7 @@ if __name__ == "__main__":
                        '(default: ".")')
     (opts, args) = oparser.parse_args()
 
-    i_vcc = None
-    for f in args:
-        if os.path.exists(f):
-            i_vcc = f
-            break
+    i_vcc = next((f for f in args if os.path.exists(f)), None)
     if i_vcc is None and os.path.exists("vmod.vcc"):
         i_vcc = "vmod.vcc"
     if i_vcc is None:

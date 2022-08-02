@@ -164,7 +164,7 @@ returns = (
 varprotos = {}
 
 def varproto(s):
-    if not s in varprotos:
+    if s not in varprotos:
         fh.write(s + ";\n")
         varprotos[s] = True
 
@@ -204,7 +204,7 @@ class vardef(object):
             fo.write('";\n')
         elif self.rd:
             fo.write('\tsym->rname = "VRT_r_%s(ctx)";\n' % cnam)
-            varproto("VCL_" + self.typ + " VRT_r_%s(VRT_CTX)" % cnam)
+            varproto(f"VCL_{self.typ}" + f" VRT_r_{cnam}(VRT_CTX)")
         fo.write("\tsym->r_methods =\n")
         restrict(fo, self.rd)
         fo.write(";\n")
@@ -215,20 +215,20 @@ class vardef(object):
             fo.write('";\n')
         elif self.wr:
             fo.write('\tsym->lname = "VRT_l_%s(ctx, ";\n' % cnam)
-            s = "void VRT_l_%s(VRT_CTX, " % cnam
+            s = f"void VRT_l_{cnam}(VRT_CTX, "
             if self.typ == "STRING":
-                s += ctyp.c + ", ...)"
+                s += f"{ctyp.c}, ...)"
             elif self.typ == "BODY":
-                s += "enum lbody_e, " + ctyp.c + ", ...)"
+                s += f"enum lbody_e, {ctyp.c}, ...)"
             else:
-                s += "VCL_" + self.typ + ")"
+                s += f"VCL_{self.typ})"
             varproto(s)
         fo.write("\tsym->w_methods =\n")
         restrict(fo, self.wr)
         fo.write(";\n")
 
         if self.uns:
-            varproto("void VRT_u_%s(VRT_CTX)" % cnam)
+            varproto(f"void VRT_u_{cnam}(VRT_CTX)")
             fo.write('\tsym->uname = "VRT_u_%s(ctx)";\n' % cnam)
         fo.write('\tsym->u_methods =\n')
         restrict(fo, self.uns)
@@ -249,14 +249,11 @@ def parse_vcl(x):
 
 def parse_var(ln):
     l1 = ln.pop(0).split("``")
-    assert len(l1) in (1, 3)
+    assert len(l1) in {1, 3}
     vn = l1[0].strip()
     if vn[-2:] == '.*':
         vn = vn[:-2]
-    if len(l1) == 3:
-        vlo, vhi = parse_vcl(l1[1])
-    else:
-        vlo, vhi = 0, 99
+    vlo, vhi = parse_vcl(l1[1]) if len(l1) == 3 else (0, 99)
     vr = []
     vw = []
     vu = []
@@ -270,26 +267,21 @@ def parse_var(ln):
             vt = j[1]
             continue
         if j[0] == "Readable" and j[1] == "from:":
-            for i in j[2:]:
-                vr.append(i.strip(",."))
+            vr.extend(i.strip(",.") for i in j[2:])
             continue
         if j[0] == "Writable" and j[1] == "from:":
-            for i in j[2:]:
-                vw.append(i.strip(",."))
+            vw.extend(i.strip(",.") for i in j[2:])
             continue
         if j[0] == "Unsetable" and j[1] == "from:":
-            for i in j[2:]:
-                vu.append(i.strip(",."))
+            vu.extend(i.strip(",.") for i in j[2:])
             continue
         break
     if vn[:8] != "storage.":
         vardef(vn, vt, vr, vw, vu, vlo, vhi)
 
 def parse_var_doc(fn):
-    l = []
-    for i in open(fn):
-        l.append(i.rstrip())
-    for n in range(0, len(l)):
+    l = [i.rstrip() for i in open(fn)]
+    for n in range(len(l)):
         j = l[n].split()
         if len(j) != 2 or j[0] != "Type:" or not l[n][0].isspace():
             continue
@@ -330,23 +322,21 @@ vcltype("STRINGS", "void", True)
 vcltype("STRING_LIST", "void*", True)
 vcltype("SUB", "void*", True)
 
-fi = open(join(srcroot, "include/vrt.h"))
-
-for i in fi:
-    j = i.split()
-    if len(j) < 3:
-        continue
-    if j[0] != "typedef":
-        continue
-    if j[-1][-1] != ";":
-        continue
-    if j[-1][-2] == ")":
-        continue
-    if j[-1][:4] != "VCL_":
-        continue
-    d = " ".join(j[1:-1])
-    vcltype(j[-1][4:-1], d)
-fi.close()
+with open(join(srcroot, "include/vrt.h")) as fi:
+    for i in fi:
+        j = i.split()
+        if len(j) < 3:
+            continue
+        if j[0] != "typedef":
+            continue
+        if j[-1][-1] != ";":
+            continue
+        if j[-1][-2] == ")":
+            continue
+        if j[-1][:4] != "VCL_":
+            continue
+        d = " ".join(j[1:-1])
+        vcltype(j[-1][4:-1], d)
 
 #######################################################################
 # Nothing is easily configurable below this line.
@@ -356,8 +346,8 @@ fi.close()
 #######################################################################
 def emit_vcl_fixed_token(fo, tokens):
     "Emit a function to recognize tokens in a string"
-    recog = list()
-    emit = dict()
+    recog = []
+    emit = {}
     for i in tokens:
         j = tokens[i]
         if j is not None:
@@ -395,16 +385,14 @@ vcl_fixed_token(const char *p, const char **q)
                 need_ret = False
             else:
                 fo.write("\t\tif (")
-                k = 1
                 l = len(j)
-                while k < l:
+                for k in range(1, l):
                     fo.write("p[%d] == '%s'" % (k, j[k]))
                     fo.write(" &&")
                     if (k % 3) == 0:
                         fo.write("\n\t\t    ")
                     else:
                         fo.write(" ")
-                    k += 1
                 fo.write("!isvar(p[%d])) {\n" % l)
                 fo.write("\t\t\t*q = p + %d;\n" % l)
                 fo.write("\t\t\treturn (%s);\n" % emit[j])
@@ -418,8 +406,7 @@ vcl_fixed_token(const char *p, const char **q)
 def emit_vcl_tnames(fo, tokens):
     "Emit the vcl_tnames (token->string) conversion array"
     fo.write("\nconst char * const vcl_tnames[256] = {\n")
-    l = list(tokens.keys())
-    l.sort()
+    l = sorted(tokens.keys())
     for i in l:
         j = tokens[i]
         if j is None:
@@ -488,10 +475,8 @@ def emit_file(fo, fd, bn):
     "Read a C-source file and spit out code that outputs it with VSB_cat()"
     fn = join(fd, bn)
 
-    fi = open(fn)
-    fc = fi.read()
-    fi.close()
-
+    with open(fn) as fi:
+        fc = fi.read()
     fo.write("\n\t/* %s */\n\n" % fn)
     emit_strings(fo, bn, fc)
 
@@ -526,26 +511,23 @@ def lint_end(fo):
 
 polish_tokens(tokens)
 
-fo = open(join(buildroot, "lib/libvcc/vcc_token_defs.h"), "w")
+with open(join(buildroot, "lib/libvcc/vcc_token_defs.h"), "w") as fo:
+    file_header(fo)
 
-file_header(fo)
-
-j = 128
-for i in sorted(tokens.keys()):
-    if i[0] == "'":
-        continue
-    fo.write("#define\t%s %d\n" % (i, j))
-    j += 1
-    assert j < 256
-
-fo.close()
+    j = 128
+    for i in sorted(tokens.keys()):
+        if i[0] == "'":
+            continue
+        fo.write("#define\t%s %d\n" % (i, j))
+        j += 1
+        assert j < 256
 
 #######################################################################
 
-rets = dict()
-vcls = list()
-vcls_client = list()
-vcls_backend = list()
+rets = {}
+vcls = []
+vcls_client = []
+vcls_backend = []
 for i in returns:
     vcls.append(i[0])
     for j in i[1]:
@@ -556,41 +538,35 @@ for i in returns:
     for j in i[2]:
         rets[j] = True
 
-#######################################################################
+with open(join(buildroot, "include/tbl/vcl_returns.h"), "w") as fo:
+    file_header(fo)
 
-fo = open(join(buildroot, "include/tbl/vcl_returns.h"), "w")
+    lint_start(fo)
 
-file_header(fo)
+    fo.write("#ifdef VCL_RET_MAC\n")
+    ll = sorted(returns)
+    for i in sorted(rets.keys()):
+        fo.write(f"VCL_RET_MAC({i.lower()}, {i.upper()}")
+        s = ",\n\t"
+        for j in ll:
+            if i in j[2]:
+                fo.write(f"{s}VCL_MET_{j[0].upper()}")
+                s = " |\n\t"
+        fo.write("\n)\n\n")
+    fo.write("#undef VCL_RET_MAC\n")
+    fo.write("#endif\n")
 
-lint_start(fo)
-
-fo.write("#ifdef VCL_RET_MAC\n")
-ll = sorted(returns)
-for i in sorted(rets.keys()):
-    fo.write("VCL_RET_MAC(%s, %s" % (i.lower(), i.upper()))
-    s = ",\n\t"
-    for j in ll:
-        if i in j[2]:
-            fo.write("%sVCL_MET_%s" % (s, j[0].upper()))
-            s = " |\n\t"
-    fo.write("\n)\n\n")
-fo.write("#undef VCL_RET_MAC\n")
-fo.write("#endif\n")
-
-fo.write("\n#ifdef VCL_MET_MAC\n")
-for i in ll:
-    fo.write("VCL_MET_MAC(%s, %s, %s," %
-             (i[0].lower(), i[0].upper(), i[1]))
-    p = " (\n\t"
-    for j in sorted(i[2]):
-        fo.write("%s(1U << VCL_RET_%s)" % (p, j.upper()))
-        p = " |\n\t"
-    fo.write(")\n)\n\n")
-fo.write("#undef VCL_MET_MAC\n")
-fo.write("#endif\n")
-lint_end(fo)
-fo.close()
-
+    fo.write("\n#ifdef VCL_MET_MAC\n")
+    for i in ll:
+        fo.write(f"VCL_MET_MAC({i[0].lower()}, {i[0].upper()}, {i[1]},")
+        p = " (\n\t"
+        for j in sorted(i[2]):
+            fo.write(f"{p}(1U << VCL_RET_{j.upper()})")
+            p = " |\n\t"
+        fo.write(")\n)\n\n")
+    fo.write("#undef VCL_MET_MAC\n")
+    fo.write("#endif\n")
+    lint_end(fo)
 #######################################################################
 
 fo = open(join(buildroot, "include/vcl.h"), "w")
@@ -618,10 +594,10 @@ fo.write("\n/* VCL Methods */\n")
 task = {}
 n = 1
 for i in returns:
-    fo.write(tbl40("#define VCL_MET_%s" % i[0].upper(), "(1U << %d)\n" % n))
-    if not i[1] in task:
+    fo.write(tbl40(f"#define VCL_MET_{i[0].upper()}", "(1U << %d)\n" % n))
+    if i[1] not in task:
         task[i[1]] = []
-    task[i[1]].append("VCL_MET_" + i[0].upper())
+    task[i[1]].append(f"VCL_MET_{i[0].upper()}")
     n += 1
 
 fo.write("\n" + tbl40("#define VCL_MET_MAX", "%d\n" % n))
@@ -629,8 +605,13 @@ fo.write("\n" + tbl40("#define VCL_MET_MASK", "0x%x\n" % ((1 << n) - 1)))
 
 fo.write("\n")
 for i in sorted(task.keys()):
-    fo.write(tbl40("#define VCL_MET_TASK_%s" % i.upper(),
-                   "( " + (" | \\\n\t\t\t\t\t  ").join(task[i]) + " )\n"))
+    fo.write(
+        tbl40(
+            f"#define VCL_MET_TASK_{i.upper()}",
+            "( " + (" | \\\n\t\t\t\t\t  ").join(task[i]) + " )\n",
+        )
+    )
+
 
 fo.write("\n")
 fo.write(tbl40("#define VCL_MET_TASK_ALL", "( VCL_MET_TASK_"))
@@ -640,7 +621,7 @@ fo.write(" )")
 fo.write("\n/* VCL Returns */\n")
 n = 1
 for i in sorted(rets.keys()):
-    fo.write(tbl40("#define VCL_RET_%s" % i.upper(), "%d\n" % n))
+    fo.write(tbl40(f"#define VCL_RET_{i.upper()}", "%d\n" % n))
     n += 1
 
 fo.write("\n" + tbl40("#define VCL_RET_MAX", "%d\n" % n))
@@ -698,7 +679,7 @@ fo.close()
 
 
 def restrict(fo, spec):
-    d = dict()
+    d = {}
     for j in spec:
         if j[:4] == "vcl_":
             j = j[4:]
@@ -717,17 +698,16 @@ def restrict(fo, spec):
             for i in vcls_backend:
                 d[i] = True
         else:
-            if not j in vcls:
+            if j not in vcls:
                 print("JJ", j)
             assert j in vcls
             d[j] = True
     p = ""
-    l = list(d.keys())
-    l.sort()
+    l = sorted(d.keys())
     w = 0
     fo.write("\t\t")
     for j in l:
-        x = p + "VCL_MET_" + j.upper()
+        x = f"{p}VCL_MET_{j.upper()}"
         if w + len(x) > 60:
             fo.write("\n\t\t")
             w = 0
@@ -739,13 +719,13 @@ def restrict(fo, spec):
 
 #######################################################################
 
-fh = open(join(buildroot, "include/vrt_obj.h"), "w")
-file_header(fh)
+with open(join(buildroot, "include/vrt_obj.h"), "w") as fh:
+    file_header(fh)
 
-fo = open(join(buildroot, "lib/libvcc/vcc_obj.c"), "w")
-file_header(fo)
+    with open(join(buildroot, "lib/libvcc/vcc_obj.c"), "w") as fo:
+        file_header(fo)
 
-fo.write("""
+        fo.write("""
 #include "config.h"
 
 #include "vcc_compile.h"
@@ -756,58 +736,52 @@ vcc_Var_Init(struct vcc *tl)
     struct symbol *sym;
 """)
 
-parse_var_doc(join(srcroot, "doc/sphinx/reference/vcl_var.rst"))
-fo.write("}\n")
+        parse_var_doc(join(srcroot, "doc/sphinx/reference/vcl_var.rst"))
+        fo.write("}\n")
 
-for i in stv_variables:
-    fh.write(vcltypes[i[1]].c + " VRT_stevedore_" + i[0] + "(VCL_STEVEDORE);\n")
+        for i in stv_variables:
+            fh.write(f"{vcltypes[i[1]].c} VRT_stevedore_{i[0]}" + "(VCL_STEVEDORE);\n")
 
-fo.write("\n/* VCL type identifiers */\n")
+        fo.write("\n/* VCL type identifiers */\n")
 
-for vn in sorted(vcltypes.keys()):
-    v = vcltypes[vn]
-    if v.internal:
-        continue
-    fo.write("const struct vrt_type VCL_TYPE_%s[1] = { {\n" % v.name)
-    fo.write("\t.magic = VRT_TYPE_MAGIC,\n")
-    fo.write('\t.lname = "%s",\n' % v.name.lower())
-    fo.write('\t.uname = "%s",\n' % v.name)
-    fo.write('\t.ctype = "%s",\n' % v.c)
-    if v.c != "void":
-        fo.write('\t.szof = sizeof(VCL_%s),\n' % v.name)
-    fo.write("}};\n")
+        for vn in sorted(vcltypes.keys()):
+            v = vcltypes[vn]
+            if v.internal:
+                continue
+            fo.write("const struct vrt_type VCL_TYPE_%s[1] = { {\n" % v.name)
+            fo.write("\t.magic = VRT_TYPE_MAGIC,\n")
+            fo.write('\t.lname = "%s",\n' % v.name.lower())
+            fo.write('\t.uname = "%s",\n' % v.name)
+            fo.write('\t.ctype = "%s",\n' % v.c)
+            if v.c != "void":
+                fo.write('\t.szof = sizeof(VCL_%s),\n' % v.name)
+            fo.write("}};\n")
 
-fo.close()
-fh.close()
-
-#######################################################################
-
-fo = open(join(buildroot, "lib/libvcc/vcc_fixed_token.c"), "w")
-
-file_header(fo)
-fo.write("""
+with open(join(buildroot, "lib/libvcc/vcc_fixed_token.c"), "w") as fo:
+    file_header(fo)
+    fo.write("""
 
 #include "config.h"
 
 #include "vcc_compile.h"
 """)
 
-emit_vcl_fixed_token(fo, tokens)
-emit_vcl_tnames(fo, tokens)
+    emit_vcl_fixed_token(fo, tokens)
+    emit_vcl_tnames(fo, tokens)
 
-fo.write("""
+    fo.write("""
 void
 vcl_output_lang_h(struct vsb *sb)
 {
 """)
 
-emit_file(fo, srcroot, "include/vdef.h")
-emit_file(fo, srcroot, "include/vrt.h")
-emit_file(fo, buildroot, "include/vcl.h")
-emit_file(fo, buildroot, "include/vrt_obj.h")
-emit_file(fo, srcroot, "include/vcc_interface.h")
-emit_strings(fo, "vgc asserts (generate.py)",
-'''#define assert(e)							\\
+    emit_file(fo, srcroot, "include/vdef.h")
+    emit_file(fo, srcroot, "include/vrt.h")
+    emit_file(fo, buildroot, "include/vcl.h")
+    emit_file(fo, buildroot, "include/vrt_obj.h")
+    emit_file(fo, srcroot, "include/vcc_interface.h")
+    emit_strings(fo, "vgc asserts (generate.py)",
+    '''#define assert(e)							\\
 do {									\\
 	if (!(e)) {							\\
 		VPI_Fail(__func__, __FILE__, __LINE__, #e);		\\
@@ -815,34 +789,25 @@ do {									\\
 } while (0)
 ''')
 
-fo.write("\n}\n")
-fo.close()
+    fo.write("\n}\n")
+with open(join(buildroot, "lib/libvcc/vcc_types.h"), "w") as ft:
+    file_header(ft)
 
-#######################################################################
-ft = open(join(buildroot, "lib/libvcc/vcc_types.h"), "w")
-file_header(ft)
+    lint_start(ft)
 
-lint_start(ft)
+    for vcltype in sorted(vcltypes.keys()):
+        ft.write(f"VCC_TYPE({vcltype}, {vcltype.lower()}" + ")\n")
+    ft.write("#undef VCC_TYPE\n")
+    lint_end(ft)
+with open(join(buildroot, "include/tbl/vrt_stv_var.h"), "w") as fo:
+    file_header(fo)
+    lint_start(fo)
 
-for vcltype in sorted(vcltypes.keys()):
-    ft.write("VCC_TYPE(" + vcltype + ", " + vcltype.lower() +")\n")
-ft.write("#undef VCC_TYPE\n")
-lint_end(ft)
-ft.close()
+    for i in stv_variables:
+        ct = vcltypes[i[1]]
+        fo.write(f"VRTSTVVAR({i[0]}" + ",\t" + i[1] + ",\t")
+        fo.write(ct.c + ",\t" + i[2] + ")")
+        fo.write("\n")
 
-#######################################################################
-
-fo = open(join(buildroot, "include/tbl/vrt_stv_var.h"), "w")
-
-file_header(fo)
-lint_start(fo)
-
-for i in stv_variables:
-    ct = vcltypes[i[1]]
-    fo.write("VRTSTVVAR(" + i[0] + ",\t" + i[1] + ",\t")
-    fo.write(ct.c + ",\t" + i[2] + ")")
-    fo.write("\n")
-
-fo.write("#undef VRTSTVVAR\n")
-lint_end(fo)
-fo.close()
+    fo.write("#undef VRTSTVVAR\n")
+    lint_end(fo)

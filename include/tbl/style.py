@@ -6,10 +6,7 @@ import glob
 
 def check_file(fn):
     print("Check", fn)
-    ll = []
-    for l in open(fn):
-        ll.append(l)
-
+    ll = list(open(fn))
     assert ll.pop(0)[:2] == "/*"
 
     while ll.pop(0) != " */\n":
@@ -19,14 +16,17 @@ def check_file(fn):
 
     assert ll.pop(0) == "\n"
     i = ll.pop(0)
-    assert i == "/*lint -save -e525 -e539 */\n" or \
-           i == "/*lint -save -e525 -e539 -e835 */\n"
+    assert i in [
+        "/*lint -save -e525 -e539 */\n",
+        "/*lint -save -e525 -e539 -e835 */\n",
+    ]
+
     assert ll.pop(0) == "\n"
 
     assert ll.pop(-1) == "/*lint -restore */\n"
     assert ll.pop(-1) == "\n"
 
-    for i in range(0, len(ll) -1):
+    for i in range(len(ll) -1):
         assert ll[i] != "\n" or ll[i+1] != "\n"
         assert ll[i] != ")\n" or ll[i+1] == "\n" or ll[i+1][0] == "#"
 
@@ -54,19 +54,14 @@ def check_file(fn):
                 m[j[1]] = "Undef"
             while l[-2:] == "\\\n":
                 l = ll.pop(0)
-        else:
-            pass
-            # print(l)
     rv = 0
-    for i in m:
-        if m[i] != "Undef":
+    for i, value in m.items():
+        if value != "Undef":
             print("ERROR", fn, i, m[i])
             rv += 1
     return rv
 
-rv = 0
-for fn in glob.glob("*.h"):
-    rv += check_file(fn)
+rv = sum(check_file(fn) for fn in glob.glob("*.h"))
 if rv != 0:
     print(rv, "Errors")
 exit(rv)

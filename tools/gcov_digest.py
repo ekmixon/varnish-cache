@@ -71,10 +71,7 @@ def process_gcov(fn, sn):
         ll = d[1]
         if cnt == "-":
             continue
-        if cnt == "#####":
-            cnt = 0
-        else:
-            cnt = int(cnt)
+        cnt = 0 if cnt == "#####" else int(cnt)
         lno = int(d[1])
         if lno not in dd:
             dd[lno] = 0
@@ -84,7 +81,7 @@ def process_gcov(fn, sn):
     ll = ll.strip()
     if d[2] == "/*EOF*/\n":
         ll = pl
-    elif pl != ll and not pl is None:
+    elif pl != ll and pl is not None:
         print("CONFLICT", fn, ll, pl)
         ll = "-1"
     lengths[sn] = ll
@@ -96,7 +93,7 @@ def run_gcov(prog, subdir):
         for i in exclude:
             if i in dirs:
                 dirs.remove(i)
-        if " ".join(files).find(".gcda") == -1:
+        if ".gcda" not in " ".join(files):
             continue
         for fn in files:
             if fn[-2:] != ".o":
@@ -107,17 +104,29 @@ def run_gcov(prog, subdir):
 
             if root[-6:] == "/.libs":
                 x = subprocess.check_output(
-                    ["cd " + root + "/.. && " +
-                     "exec " + prog + " .libs/" + fn],
-                    stderr=subprocess.STDOUT, shell=True,
-                    universal_newlines=True)
+                    [
+                        (
+                            (
+                                ((f"cd {root}/.. && " + "exec ") + prog)
+                                + " .libs/"
+                            )
+                            + fn
+                        )
+                    ],
+                    stderr=subprocess.STDOUT,
+                    shell=True,
+                    universal_newlines=True,
+                )
+
                 pf = ".."
             else:
                 x = subprocess.check_output(
-                    ["cd " + root + " && " +
-                     "exec " + prog + " " + fn],
-                    stderr=subprocess.STDOUT, shell=True,
-                    universal_newlines=True)
+                    [((((f"cd {root} && " + "exec ") + prog) + " ") + fn)],
+                    stderr=subprocess.STDOUT,
+                    shell=True,
+                    universal_newlines=True,
+                )
+
                 pf = ""
 
             for ln in x.split("\n"):
@@ -143,9 +152,8 @@ def produce_output(fdo):
     """
 
     for sn, cnt in counts.items():
-        fdo.write("/" + sn + " " + str(lengths[sn]) + "\n")
-        lnos = list(cnt.items())
-        lnos.sort()
+        fdo.write(f"/{sn} {str(lengths[sn])}" + "\n")
+        lnos = sorted(cnt.items())
         pln = -1
         pcn = -1
         while lnos:
@@ -157,11 +165,7 @@ def produce_output(fdo):
                     break
                 lnos.pop(0)
                 lnl = lnn
-            if ln == pln + 1:
-                s = "+ "
-            else:
-                s = "%d " % ln
-
+            s = "+ " if ln == pln + 1 else "%d " % ln
             if ln != lnl:
                 s += "%d " % lnl
                 pln = lnl

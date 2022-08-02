@@ -57,10 +57,14 @@ def file_header(fo):
 #######################################################################
 
 
-v = subprocess.check_output([
-    "git --git-dir=%s rev-parse HEAD 2>/dev/null || echo NOGIT" %
-    (os.path.join(srcroot, ".git"))
-    ], shell=True, universal_newlines=True).strip()
+v = subprocess.check_output(
+    [
+        f'git --git-dir={os.path.join(srcroot, ".git")} rev-parse HEAD 2>/dev/null || echo NOGIT'
+    ],
+    shell=True,
+    universal_newlines=True,
+).strip()
+
 
 vcsfn = os.path.join(srcroot, "include", "vcs_version.h")
 
@@ -69,21 +73,18 @@ try:
 except IOError:
     i = ""
 
-ident = "/* " + v + " */\n"
+ident = f"/* {v}" + " */\n"
 
 if i != ident:
-    fo = open(vcsfn, "w")
-    fo.write(ident)
-    file_header(fo)
-    fo.write('#define VCS_Version "%s"\n' % v)
-    fo.close()
-
+    with open(vcsfn, "w") as fo:
+        fo.write(ident)
+        file_header(fo)
+        fo.write('#define VCS_Version "%s"\n' % v)
     for i in open(os.path.join(buildroot, "Makefile")):
         if i[:14] == "PACKAGE_STRING":
             break
     i = i.split("=")[1].strip()
 
-    fo = open(os.path.join(srcroot, "include", "vmod_abi.h"), "w")
-    file_header(fo)
-    fo.write('#define VMOD_ABI_Version "%s %s"\n' % (i, v))
-    fo.close()
+    with open(os.path.join(srcroot, "include", "vmod_abi.h"), "w") as fo:
+        file_header(fo)
+        fo.write('#define VMOD_ABI_Version "%s %s"\n' % (i, v))

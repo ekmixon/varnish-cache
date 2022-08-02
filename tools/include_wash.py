@@ -25,7 +25,7 @@ def check(fn):
             print(fn, "vdef.h included after vrt.h")
         for i in ("stddef.h", "stdint.h", "cache/cache.h", "cache.h"):
             if i in l:
-                print(fn, i + " included with vrt.h")
+                print(fn, f"{i} included with vrt.h")
 
     for i in ("cache/cache.h", "cache.h"):
         if i in l:
@@ -33,9 +33,9 @@ def check(fn):
                       "math.h", "pthread.h", "stdarg.h", "sys/types.h",
                       "vdef.h", "miniobj.h", "vas.h", "vqueue.h", "vtree.h"):
                 if j in l:
-                    print(fn, j + " included with cache.h")
+                    print(fn, f"{j} included with cache.h")
 
 for (dir, dns, fns) in os.walk("."):
     for f in fns:
         if f[-2:] == ".c":
-            check(dir + "/" + f)
+            check(f"{dir}/{f}")

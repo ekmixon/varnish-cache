@@ -7,12 +7,12 @@ import sys
 regex = re.compile("^HPH\((.{4}), (.{10}), +(.{1,3})\)")
 
 if len(sys.argv) != 2:
-    print("{} takes one and only one argument".format(sys.argv[0]))
+    print(f"{sys.argv[0]} takes one and only one argument")
     sys.exit(2)
 
 class sym:
     def __init__(self, bigval, bigvall, chr=0, esc=None):
-        self.vall = bigvall % 8 if bigvall % 8 else 8
+        self.vall = bigvall % 8 or 8
         self.val = bigval & ((1 << self.vall) - 1)
         self.pfx = (bigval >> self.vall)# & 0xff
         self.chr = chr
@@ -21,38 +21,36 @@ class sym:
 tbls = {}
 msl = {} # max sym length
 
-f = open(sys.argv[1])
-for l in f:
-    grp = 1
-    match = regex.match(l)
-    if not match:
-        continue
+with open(sys.argv[1]) as f:
+    for l in f:
+        grp = 1
+        match = regex.match(l)
+        if not match:
+            continue
 
-    char = int(match.group(grp), 16)
-    grp += 1
+        char = int(match.group(grp), 16)
+        grp += 1
 
-    val = int(match.group(grp), 16)
-    grp += 1
+        val = int(match.group(grp), 16)
+        grp += 1
 
-    vall = int(match.group(grp))
+        vall = int(match.group(grp))
 
-    s = sym(val, vall, char)
-    if s.pfx not in tbls:
-        tbls[s.pfx] = {}
+        s = sym(val, vall, char)
+        if s.pfx not in tbls:
+            tbls[s.pfx] = {}
 
-    if s.val in tbls[s.pfx]:
-        assert tbls[s.pfx][s.val].e
-    tbls[s.pfx][s.val] = s
+        if s.val in tbls[s.pfx]:
+            assert tbls[s.pfx][s.val].e
+        tbls[s.pfx][s.val] = s
 
-    # add the escape entry in the "previous" table
-    if s.pfx:
-        pp = s.pfx >> 8
-        pv = s.pfx & 0xff
-        if pp not in tbls:
-            tbls[pp] = {}
-        tbls[pp][pv] = sym(pv, 8, 0, "&tbl_{:x}".format(s.pfx))
-f.close()
-
+        # add the escape entry in the "previous" table
+        if s.pfx:
+            pp = s.pfx >> 8
+            pv = s.pfx & 0xff
+            if pp not in tbls:
+                tbls[pp] = {}
+            tbls[pp][pv] = sym(pv, 8, 0, "&tbl_{:x}".format(s.pfx))
 # add the EOS case
 s = sym(63, 6, 0)
 tbls[0xffffff][63] = s
@@ -76,7 +74,7 @@ struct stbl {
 ''')
 
 for pfx in sorted(tbls.keys(), reverse=True):
-    msl = max([x.vall for x in tbls[pfx].values()])
+    msl = max(x.vall for x in tbls[pfx].values())
     for s in tbls[pfx].values():
         s.val = s.val << (msl - s.vall)
 
@@ -84,10 +82,15 @@ for pfx in sorted(tbls.keys(), reverse=True):
     print("\nstatic struct ssym sym_{:x}_array[] = {{".format(pfx))
     for s in tbl:
         for j in range(2 ** (msl - s.vall)):
-            print("{} {{{}, {:3d}, {}}},".format(
-                "\t     " if j else "/* idx {:3d} */".format(s.val + j),
-                s.vall, s.chr % 256,
-                s.esc if s.esc else "NULL"))
+            print(
+                "{} {{{}, {:3d}, {}}},".format(
+                    "\t     " if j else "/* idx {:3d} */".format(s.val + j),
+                    s.vall,
+                    s.chr % 256,
+                    s.esc or "NULL",
+                )
+            )
+
     print('''}};
 
 static struct stbl tbl_{:x} = {{

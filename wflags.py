@@ -105,14 +105,11 @@ def main():
         if not j.returncode and not j.stdout and not j.stderr:
             use_flags.append(i)
         else:
-            sys.stderr.write(compiler + " cannot " + i + '\n')
-            if b'error: unrecognized command line option' in j.stderr:
-                # LLVM
-                pass
-            elif b'warning: unknown warning option' in j.stderr:
-                # GCC
-                pass
-            else:
+            sys.stderr.write(f"{compiler} cannot {i}" + '\n')
+            if (
+                b'error: unrecognized command line option' not in j.stderr
+                and b'warning: unknown warning option' not in j.stderr
+            ):
                 sys.stderr.write("\n\t" + j.stderr.decode('utf8') + '\n')
     print(" ".join(use_flags))
 

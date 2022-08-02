@@ -65,8 +65,7 @@ def genhdr(fo, name):
     fo.write('/*\n')
     fo.write(' * NB:  This file is machine generated, DO NOT EDIT!\n')
     fo.write(' *\n')
-    fo.write(' * Edit ' + name +
-             '.vsc and run lib/libvcc/vsctool.py instead.\n')
+    fo.write((f' * Edit {name}' + '.vsc and run lib/libvcc/vsctool.py instead.\n'))
     fo.write(' */\n')
     fo.write('\n')
 
@@ -88,7 +87,7 @@ class CounterSet(object):
 
     def __init__(self, name, m):
         self.name = name
-        self.struct = "struct VSC_" + name
+        self.struct = f"struct VSC_{name}"
         self.mbrs = []
         self.groups = {}
         self.head = m
@@ -112,8 +111,7 @@ class CounterSet(object):
         '''Mark set completed'''
         assert arg == self.name
         self.completed = True
-        self.gnames = list(self.groups.keys())
-        self.gnames.sort()
+        self.gnames = sorted(self.groups.keys())
 
 
     def emit_json(self, fo):
@@ -153,7 +151,7 @@ class CounterSet(object):
         s = json.dumps(dd, indent=2, separators=(',', ': '))
         fo.write("\n")
         for i in s.split("\n"):
-            j = "// " + i
+            j = f"// {i}"
             if len(j) > 72:
                 fo.write(j[:72] + "[...]\n")
             else:
@@ -164,7 +162,7 @@ class CounterSet(object):
         '''Emit .h file'''
         assert self.completed
 
-        fon = "VSC_" + self.name + ".h"
+        fon = f"VSC_{self.name}.h"
         try:
             # Python3
             fo = open(fon, "w", encoding="UTF-8")
@@ -180,26 +178,34 @@ class CounterSet(object):
             if g is not None:
                 while len(s.expandtabs()) < 64:
                     s += "\t"
-                s += "/* %s */" % g
+                s += f"/* {g} */"
             fo.write(s + "\n")
         fo.write("};\n")
         fo.write("\n")
 
         for i in self.gnames:
-            fo.write(self.struct + "_" + i + " {\n")
+            fo.write(f"{self.struct}_{i}" + " {\n")
             for j in self.groups[i]:
                 fo.write("\tuint64_t\t%s;\n" % j.arg)
             fo.write("};\n")
             fo.write("\n")
 
-        fo.write("#define VSC_" + self.name +
-                 "_size PRNDUP(sizeof(" + self.struct + "))\n\n")
+        fo.write(
+            (
+                (
+                    (f"#define VSC_{self.name}" + "_size PRNDUP(sizeof(")
+                    + self.struct
+                )
+                + "))\n\n"
+            )
+        )
 
-        fo.write(self.struct + " *VSC_" + self.name + "_New")
+
+        fo.write(f"{self.struct} *VSC_{self.name}_New")
         fo.write("(struct vsmw_cluster *,\n")
         fo.write("    struct vsc_seg **, const char *fmt, ...);\n")
 
-        fo.write("void VSC_" + self.name + "_Destroy")
+        fo.write(f"void VSC_{self.name}_Destroy")
         fo.write("(struct vsc_seg **);\n")
 
         sf = self.head.param.get('sumfunction')
@@ -208,13 +214,13 @@ class CounterSet(object):
                 j = i.split("_")
                 assert len(j) <= 2
                 if len(j) == 1:
-                    fo.write("void VSC_" + self.name + "_Summ_" + i)
-                    fo.write("(" + self.struct + " *, ")
-                    fo.write("const " + self.struct + "_" + i + " *);\n")
+                    fo.write(f"void VSC_{self.name}_Summ_{i}")
+                    fo.write(f"({self.struct} *, ")
+                    fo.write(f"const {self.struct}_{i}" + " *);\n")
                 else:
-                    fo.write("void VSC_" + self.name + "_Summ_" + i)
-                    fo.write("(" + self.struct + "_" + j[0] + " *, ")
-                    fo.write("const " + self.struct + "_" + j[1] + " *);\n")
+                    fo.write(f"void VSC_{self.name}_Summ_{i}")
+                    fo.write(f"({self.struct}_{j[0]} *, ")
+                    fo.write(f"const {self.struct}_{j[1]}" + " *);\n")
 
     def emit_c_paranoia(self, fo):
         '''Emit asserts to make sure compiler gets same byte index'''
@@ -224,7 +230,7 @@ class CounterSet(object):
         fo.write("\t\"VSC element '\" #a \"' at wrong offset\")\n\n")
 
         for i in self.mbrs:
-            fo.write("PARANOIA(" + i.arg)
+            fo.write(f"PARANOIA({i.arg}")
             fo.write(", %d);\n" % (i.param["index"]))
 
         fo.write("#undef PARANOIA\n")
@@ -233,23 +239,23 @@ class CounterSet(object):
         '''Emit a function summ up countersets'''
         fo.write("\n")
         fo.write("void\n")
-        fo.write("VSC_" + self.name + "_Summ")
-        fo.write("_" + tgt[0])
+        fo.write(f"VSC_{self.name}_Summ")
+        fo.write(f"_{tgt[0]}")
         if len(tgt) > 1:
-            fo.write("_" + tgt[1])
-            fo.write("(" + self.struct + "_" + tgt[1])
+            fo.write(f"_{tgt[1]}")
+            fo.write(f"({self.struct}_{tgt[1]}")
         else:
-            fo.write("(" + self.struct)
-        fo.write(" *dst, const " + self.struct + "_" + tgt[0] + " *src)\n")
+            fo.write(f"({self.struct}")
+        fo.write(f" *dst, const {self.struct}_{tgt[0]}" + " *src)\n")
         fo.write("{\n")
         fo.write("\n")
         fo.write("\tAN(dst);\n")
         fo.write("\tAN(src);\n")
         for i in self.groups[tgt[0]]:
             s1 = "\tdst->" + i.arg + " +="
-            s2 = "src->" + i.arg + ";"
-            if len((s1 + " " + s2).expandtabs()) < 79:
-                fo.write(s1 + " " + s2 + "\n")
+            s2 = f"src->{i.arg};"
+            if len(f"{s1} {s2}".expandtabs()) < 79:
+                fo.write(f"{s1} {s2}" + "\n")
             else:
                 fo.write(s1 + "\n\t    " + s2 + "\n")
         fo.write("}\n")
@@ -258,7 +264,7 @@ class CounterSet(object):
         '''Emit New function'''
         fo.write("\n")
         fo.write(self.struct + "*\n")
-        fo.write("VSC_" + self.name + "_New")
+        fo.write(f"VSC_{self.name}_New")
         fo.write("(struct vsmw_cluster *vc,\n")
         fo.write("    struct vsc_seg **sg, const char *fmt, ...)\n")
         fo.write("{\n")
@@ -267,10 +273,10 @@ class CounterSet(object):
         fo.write("\n")
         fo.write("\tva_start(ap, fmt);\n")
         fo.write("\tretval = VRT_VSC_Alloc")
-        fo.write("(vc, sg, vsc_" + self.name + "_name, ")
-        fo.write("VSC_" + self.name + "_size,\n")
+        fo.write(f"(vc, sg, vsc_{self.name}_name, ")
+        fo.write(f"VSC_{self.name}" + "_size,\n")
         fo.write("\t    vsc_" + self.name + "_json, ")
-        fo.write("sizeof vsc_" + self.name + "_json, fmt, ap);\n")
+        fo.write(f"sizeof vsc_{self.name}" + "_json, fmt, ap);\n")
         fo.write("\tva_end(ap);\n")
         fo.write("\treturn(retval);\n")
         fo.write("}\n")
@@ -279,7 +285,7 @@ class CounterSet(object):
         '''Emit Destroy function'''
         fo.write("\n")
         fo.write("void\n")
-        fo.write("VSC_" + self.name + "_Destroy")
+        fo.write(f"VSC_{self.name}_Destroy")
         fo.write("(struct vsc_seg **sg)\n")
         fo.write("{\n")
         fo.write("\tstruct vsc_seg *p;\n")
@@ -293,7 +299,7 @@ class CounterSet(object):
     def emit_c(self):
         '''Emit .c file'''
         assert self.completed
-        fon = "VSC_" + self.name + ".c"
+        fon = f"VSC_{self.name}.c"
         try:
             # Python3
             fo = open(fon, "w", encoding="UTF-8")
@@ -379,7 +385,7 @@ class RstVscDirectiveBegin(OurDirective):
         if fo:
             fo.write("\n..\n\t" + self.cmd + ":: " + self.arg + "\n")
 
-            s = self.arg.upper() + " – " + self.param["oneliner"]
+            s = f"{self.arg.upper()} – " + self.param["oneliner"]
             fo.write("\n")
             fo.write(s + "\n")
             fo.write("=" * len(s) + "\n")
@@ -400,7 +406,7 @@ class RstVscDirective(OurDirective):
                 if i not in self.param:
                     self.param[i] = v[0]
                 if self.param[i] not in v:
-                    sys.stderr.write("Wrong " + i + " '" + self.param[i])
+                    sys.stderr.write(f"Wrong {i}" + " '" + self.param[i])
                     sys.stderr.write("' on field '" + self.arg + "'\n")
                     exit(2)
 
@@ -414,7 +420,7 @@ class RstVscDirective(OurDirective):
         self.param["index"] = vsc_set[-1].addmbr(self, self.param.get("group"))
         if fo:
             fo.write("\n``%s`` – " % self.arg)
-            fo.write("`%s` - " % self.param["type"])
+            fo.write(f'`{self.param["type"]}` - ')
             fo.write("%s\n\n" % self.param["level"])
 
             fo.write("\t" + self.param["oneliner"] + "\n")

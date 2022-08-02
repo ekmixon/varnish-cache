@@ -80,8 +80,8 @@ tokens = {
 # Emit a function to recognize tokens in a string
 
 def emit_vxp_fixed_token(fo, tokens):
-    recog = list()
-    emit = dict()
+    recog = []
+    emit = {}
     for i in tokens:
         j = tokens[i]
         if j is not None:
@@ -110,12 +110,10 @@ vxp_fixed_token(const char *p, const char **q)
                 continue
 
             fo.write("\t\tif (")
-            k = 1
             l = len(j)
-            while k < l:
+            for k in range(1, l):
                 fo.write("p[%d] == '%s'" % (k, j[k]))
                 fo.write(" &&\n\t\t    ")
-                k += 1
             fo.write("(isword(p[%d]) ? !isword(p[%d]) : 1)) {\n" % (l - 1, l))
             fo.write("\t\t\t*q = p + %d;\n" % l)
             fo.write("\t\t\treturn (%s);\n" % emit[j])
@@ -129,8 +127,7 @@ vxp_fixed_token(const char *p, const char **q)
 
 def emit_vxp_tnames(fo, tokens):
     fo.write("\nconst char * const vxp_tnames[256] = {\n")
-    l = list(tokens.keys())
-    l.sort()
+    l = sorted(tokens.keys())
     for i in l:
         j = tokens[i]
         if j is None:
@@ -164,28 +161,21 @@ def file_header(fo):
 
 polish_tokens(tokens)
 
-fo = open(buildroot + "/lib/libvarnishapi/vxp_tokens.h", "w")
+with open(f"{buildroot}/lib/libvarnishapi/vxp_tokens.h", "w") as fo:
+    file_header(fo)
 
-file_header(fo)
+    j = 128
+    l = sorted(tokens.keys())
+    for i in l:
+        if i[0] == "'":
+            continue
+        fo.write("#define\t%s %d\n" % (i, j))
+        j += 1
+        assert j < 256
 
-j = 128
-l = list(tokens.keys())
-l.sort()
-for i in l:
-    if i[0] == "'":
-        continue
-    fo.write("#define\t%s %d\n" % (i, j))
-    j += 1
-    assert j < 256
-
-fo.close()
-
-#######################################################################
-
-fo = open(buildroot + "/lib/libvarnishapi/vxp_fixed_token.c", "w")
-
-file_header(fo)
-fo.write("""
+with open(f"{buildroot}/lib/libvarnishapi/vxp_fixed_token.c", "w") as fo:
+    file_header(fo)
+    fo.write("""
 
 #include "config.h"
 
@@ -198,7 +188,5 @@ fo.write("""
 #include "vxp.h"
 """)
 
-emit_vxp_fixed_token(fo, tokens)
-emit_vxp_tnames(fo, tokens)
-
-fo.close()
+    emit_vxp_fixed_token(fo, tokens)
+    emit_vxp_tnames(fo, tokens)
